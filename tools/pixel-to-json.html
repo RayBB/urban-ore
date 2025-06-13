@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Pixel Data to JSON Converter</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f4f7f9;
+            color: #333;
+            margin: 0;
+            padding: 2em;
+            display: flex;
+            justify-content: center;
+        }
+
+        .container {
+            max-width: 900px;
+            width: 100%;
+            background-color: #fff;
+            padding: 2em;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            color: #1a2533;
+            border-bottom: 2px solid #e0e6eb;
+            padding-bottom: 0.5em;
+            margin-top: 0;
+        }
+
+        p.description {
+            color: #555;
+            line-height: 1.5;
+        }
+        
+        .description strong {
+            color: #c0392b;
+        }
+
+        .form-group {
+            margin-bottom: 1.5em;
+        }
+
+        label {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.5em;
+        }
+
+        .grid-inputs {
+            display: flex;
+            gap: 1em;
+        }
+
+        input[type="number"] {
+            width: 100px;
+            padding: 0.75em;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 1em;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 200px;
+            padding: 0.75em;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-family: "Courier New", Courier, monospace;
+            font-size: 1em;
+            box-sizing: border-box; /* Important for 100% width */
+        }
+        
+        .button-container {
+            display: flex;
+            gap: 1em;
+            margin-top: 1em;
+        }
+
+        button {
+            padding: 0.8em 1.5em;
+            border: none;
+            border-radius: 4px;
+            background-color: #305080;
+            color: white;
+            font-size: 1em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #4a75b3;
+        }
+
+        #copy-btn {
+            background-color: #6090D0;
+        }
+
+        #copy-btn:hover {
+            background-color: #7ab3e8;
+        }
+
+        .output-container {
+            margin-top: 2em;
+        }
+
+        pre {
+            background-color: #2d2d2d;
+            color: #f0f0f0;
+            padding: 1.5em;
+            border-radius: 4px;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <h1>Pixel Data to JSON Converter</h1>
+        <p class="description">
+            Enter the image dimensions and a list of hex color codes representing the image pixels (read left-to-right, top-to-bottom).
+            The tool will automatically create the unique color palette and the indexed pixel grid.
+            <strong>The number of hex codes must equal width * height.</strong>
+        </p>
+
+        <div class="form-group grid-inputs">
+            <div>
+                <label for="width-input">Width</label>
+                <input type="number" id="width-input" value="16" min="1">
+            </div>
+            <div>
+                <label for="height-input">Height</label>
+                <input type="number" id="height-input" value="16" min="1">
+            </div>
+        </div>
+
+        <div class="form-group">
+            <label for="hex-input">Flattened Pixel Data (comma, space, or newline separated)</label>
+            <textarea id="hex-input" placeholder="e.g., #FF0000, #00FF00, #0000FF, #FFFFFF ... (for a 2x2 image)"></textarea>
+        </div>
+
+        <div class="button-container">
+            <button id="convert-btn">Generate JSON</button>
+            <button id="copy-btn" style="display: none;">Copy to Clipboard</button>
+        </div>
+
+        <div id="output-container" class="output-container" style="display: none;">
+            <h2>Output</h2>
+            <pre><code id="output-json"></code></pre>
+        </div>
+    </div>
+
+    <script>
+        const widthInput = document.getElementById('width-input');
+        const heightInput = document.getElementById('height-input');
+        const hexInput = document.getElementById('hex-input');
+        const convertBtn = document.getElementById('convert-btn');
+        const copyBtn = document.getElementById('copy-btn');
+        const outputContainer = document.getElementById('output-container');
+        const outputJsonEl = document.getElementById('output-json');
+        
+        // --- Pre-populate with the user's example data ---
+        const exampleData = {
+          palette: { "0": "#F0F0F0", "1": "#000000", "2": "#305080", "3": "#6090D0", "4": "#A0D0F0" },
+          pixels: [
+            [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],[0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0],
+            [0,0,0,0,0,0,0,1,1,1,1,0,0,0,0,0],[0,0,0,1,1,1,3,3,3,4,1,0,0,0,0,0],[0,0,1,3,3,3,3,3,3,4,4,1,1,0,0,0],
+            [0,1,3,3,3,3,3,3,3,4,4,4,1,0,0,0],[0,1,3,3,3,3,3,3,3,4,4,1,1,0,0,0],[1,3,3,3,3,3,3,3,3,3,1,1,0,0,0,0],
+            [1,3,3,2,2,3,3,2,1,3,1,1,1,0,0,0],[1,3,2,2,3,3,2,1,3,3,3,1,4,1,0,0],[0,1,2,3,3,2,1,1,3,3,1,1,4,4,1,0],
+            [0,0,1,1,2,2,1,3,3,3,1,2,4,4,1,0],[0,0,0,0,1,1,1,1,1,3,1,1,2,4,1,0],[0,0,0,0,0,0,0,0,1,1,1,2,2,1,0,0],
+            [0,0,0,0,0,0,0,0,0,1,1,1,0,0,0,0]
+          ]
+        };
+        const flatPixelHex = exampleData.pixels.flat().map(index => exampleData.palette[index]);
+        hexInput.value = flatPixelHex.join(', ');
+        // --- End pre-population ---
+
+
+        convertBtn.addEventListener('click', () => {
+            // 1. Get user inputs
+            const width = parseInt(widthInput.value, 10);
+            const height = parseInt(heightInput.value, 10);
+            const hexListString = hexInput.value;
+
+            // 2. Validate inputs
+            if (isNaN(width) || width < 1 || isNaN(height) || height < 1) {
+                alert("Please enter valid positive numbers for width and height.");
+                return;
+            }
+            if (!hexListString.trim()) {
+                alert("Please enter the pixel data.");
+                return;
+            }
+
+            // 3. Process the hex string into a flat array of standardized colors
+            const flatPixelData = hexListString
+                .trim()
+                .split(/[\s,]+/)
+                .filter(Boolean) // Remove empty entries
+                .map(color => color.startsWith('#') ? color.toUpperCase() : `#${color.toUpperCase()}`);
+
+            // 4. CRITICAL: Validate that the data size matches the grid size
+            if (flatPixelData.length !== width * height) {
+                alert(`Error: The number of hex codes provided (${flatPixelData.length}) does not match the required grid size of ${width}x${height} (${width * height}).`);
+                return;
+            }
+            
+            // 5. Create the unique palette and a map for quick lookups
+            const uniqueColors = [...new Set(flatPixelData)];
+            const colorToIndexMap = new Map(uniqueColors.map((color, index) => [color, index]));
+            
+            const palette = {};
+            uniqueColors.forEach((color, index) => {
+                palette[index] = color;
+            });
+
+            // 6. Create the 2D pixel grid using the color-to-index map
+            const pixels = [];
+            for (let h = 0; h < height; h++) {
+                const row = [];
+                for (let w = 0; w < width; w++) {
+                    const flatIndex = h * width + w;
+                    const color = flatPixelData[flatIndex];
+                    const paletteIndex = colorToIndexMap.get(color);
+                    row.push(paletteIndex);
+                }
+                pixels.push(row);
+            }
+            
+            // 7. Assemble the final JSON object
+            const resultObject = {
+                width: width,
+                height: height,
+                palette: palette,
+                pixels: pixels
+            };
+
+            // 8. Display the result
+            const jsonString = JSON.stringify(resultObject, null, 2);
+            outputJsonEl.textContent = jsonString;
+            
+            outputContainer.style.display = 'block';
+            copyBtn.style.display = 'inline-block';
+            copyBtn.textContent = 'Copy to Clipboard';
+        });
+
+        copyBtn.addEventListener('click', () => {
+            navigator.clipboard.writeText(outputJsonEl.textContent).then(() => {
+                copyBtn.textContent = 'Copied!';
+                setTimeout(() => { copyBtn.textContent = 'Copy to Clipboard'; }, 2000);
+            }).catch(err => {
+                console.error('Failed to copy text: ', err);
+                alert('Failed to copy text. Please copy manually.');
+            });
+        });
+    </script>
+
+</body>
+</html>

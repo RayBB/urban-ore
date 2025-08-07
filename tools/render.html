@@ -16,14 +16,57 @@
 <body>
 
     <h1>Sprite Renderer</h1>
-    
-    <!-- Update canvas resolution to 64x64 and display size to 512x512 -->
+    <div style="max-width:900px;margin:0 auto 20px;padding:0 16px;">
+        <label for="jsonInput" style="display:block;margin:0 0 8px;text-align:left;">Paste sprite JSON</label>
+        <textarea id="jsonInput" placeholder='{"width":16,"height":16,"palette":{"0":"#000000"},"pixels":[[0,...],...]}' style="width:100%;min-height:160px;border:1px solid #555;background:#222;color:#eee;border-radius:4px;padding:8px;font-family:monospace;"></textarea>
+        <div id="status" style="text-align:left;color:#f88;margin-top:6px;min-height:1.2em;"></div>
+    </div>
+    <!-- Canvas is scaled via CSS for crisp pixels -->
     <canvas id="spriteCanvas" width="64" height="64" style="width: 512px; height: 512px;"></canvas>
 
     <script>
-        window.onload = function() {
-            // PASTE THE NEW 64x64 JSON DATA HERE
-            const spriteData = {
+        (function() {
+            const canvas = document.getElementById('spriteCanvas');
+            const ctx = canvas.getContext && canvas.getContext('2d');
+            const input = document.getElementById('jsonInput');
+            const statusEl = document.getElementById('status');
+
+            function renderSprite(spriteData) {
+                if (!ctx) return;
+                const { width, height, palette, pixels } = spriteData || {};
+                if (!width || !height || !palette || !pixels) {
+                    throw new Error('JSON must include width, height, palette, and pixels');
+                }
+                // Resize backing store to sprite size
+                canvas.width = width;
+                canvas.height = height;
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                for (let y = 0; y < height; y++) {
+                    for (let x = 0; x < width; x++) {
+                        const pi = pixels[y][x];
+                        const color = palette[pi];
+                        if (!color) continue;
+                        ctx.fillStyle = color;
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+                statusEl.style.color = '#8f8';
+                statusEl.textContent = 'Rendered';
+            }
+
+            function tryParseAndRender(text) {
+                if (!text.trim()) { statusEl.textContent = ''; return; }
+                try {
+                    const data = JSON.parse(text);
+                    renderSprite(data);
+                } catch (e) {
+                    statusEl.style.color = '#f88';
+                    statusEl.textContent = 'Invalid JSON';
+                }
+            }
+
+            // Preload with existing example
+            const example = {
   "width": 32,
   "height": 32,
   "palette": {
@@ -79,20 +122,15 @@
     [0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0]
   ]
 };
-            
-            const canvas = document.getElementById('spriteCanvas');
-            if (canvas.getContext) {
-                const ctx = canvas.getContext('2d');
-                const { width, height, palette, pixels } = spriteData;
-                for (let y = 0; y < height; y++) {
-                    for (let x = 0; x < width; x++) {
-                        const paletteIndex = pixels[y][x];
-                        ctx.fillStyle = palette[paletteIndex];
-                        ctx.fillRect(x, y, 1, 1);
-                    }
-                }
-            }
-        };
+
+            input.value = JSON.stringify(example);
+            try { renderSprite(example); } catch (e) {}
+
+            // Auto-render on paste/type
+            input.addEventListener('input', () => {
+                tryParseAndRender(input.value);
+            });
+        })();
     </script>
 
 </body>
